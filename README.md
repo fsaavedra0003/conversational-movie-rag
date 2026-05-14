@@ -192,6 +192,84 @@ The evaluation validates:
 - disliked movie filtering
 - metadata generation
 - recommendation extraction
+- unsupported streaming-availability claim prevention
+- personalized recommendation behavior for returning users
+
+The evaluation pipeline runs fixed conversational recommendation scenarios across both RAG mode and agent mode. Each generated response is automatically checked against a set of deterministic quality criteria.
+
+## Evaluation Results
+
+The evaluation was executed on 10 fixed conversational recommendation scenarios covering general recommendations, personalized returning-user recommendations, agent metadata enrichment, explicit movie explanation, and unsupported streaming-availability requests.
+
+| Metric | Result |
+|---|---:|
+| Total evaluation cases | 10 |
+| Passed cases | 10 |
+| Pass rate | 100% |
+| Average score | 88.89% |
+| Passing threshold | 75% |
+| Checks per case | 9 |
+
+## Evaluation Checks
+
+| Evaluation Check | Purpose |
+|---|---|
+| `non_empty` | Ensures the model returns an actual response |
+| `movie_extracted` | Verifies that a movie title can be extracted from the answer |
+| `grounded_in_retrieved_context` | Checks that the recommended movie appears in retrieved RAG context |
+| `appears_in_context_recommendations` | Checks whether the title appears in prior structured recommendation fields |
+| `does_not_recommend_disliked_movie` | Prevents recommending movies the user disliked |
+| `does_not_repeat_liked_movie` | Prevents recommending movies already liked or watched |
+| `no_streaming_claim` | Avoids unsupported claims such as saying a movie is available on Netflix |
+| `has_agent_metadata_if_agent` | Ensures agent responses include metadata such as year, actors, and IMDb link |
+| `expected_title_match` | Verifies expected title alignment for explicit movie questions |
+
+## Evaluation Summary
+
+All 10 evaluation scenarios passed the configured threshold of 75%.
+
+The average score was **88.89%**, meaning each response passed 8 out of 9 automatic checks on average.
+
+The only recurring failed check was:
+
+```text
+appears_in_context_recommendations: false
+```
+
+This is acceptable because the recommended movie was still grounded in the retrieved context, but it did not always appear specifically inside the structured `Recommended movies:` field.
+
+## Example Evaluation Output
+
+```text
+Test case: agent_metadata
+Mode: agent
+Movie extracted: Iron Monkey
+Score: 8/9
+Score percent: 88.89%
+Passed: True
+```
+
+The agent response also included external movie metadata:
+
+```text
+Title: Iron Monkey
+Year: 1993
+Actors: Rongguang Yu, Donnie Yen
+IMDb URL: included
+Poster: included
+```
+
+## Run Evaluation
+
+```bash
+python eval.py
+```
+
+The script saves a full JSON report to:
+
+```text
+evaluation_results.json
+```
 
 ---
 
