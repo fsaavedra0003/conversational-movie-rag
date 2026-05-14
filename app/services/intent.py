@@ -1,3 +1,5 @@
+# Lightweight rule-based intent detection for routing agent behavior.
+
 def classify_intent(question: str) -> str:
     text = question.lower()
 
