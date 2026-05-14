@@ -271,9 +271,6 @@ The script saves a full JSON report to:
 evaluation_results.json
 ```
 
----
-
-
 # Performance Considerations
 
 The system uses:
@@ -285,7 +282,7 @@ The system uses:
 
 These choices improve scalability and conversational responsiveness.
 
----
+
 
 # Architectural Decisions
 
@@ -293,7 +290,7 @@ These choices improve scalability and conversational responsiveness.
 - The agent workflow enables tool usage and metadata enrichment.
 - ChromaDB was selected for lightweight local semantic retrieval and easy reproducibility.
 
----
+
 
 # Current Limitations
 
@@ -303,7 +300,7 @@ These choices improve scalability and conversational responsiveness.
 - External metadata depends on third-party APIs.
 
 
----
+
 
 # API Endpoint
 
