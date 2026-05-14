@@ -10,7 +10,7 @@ from app.services.rag import retrieve_rag_context, rag_answer
 
 
 # File where evaluation results will be saved
-RESULTS_PATH = Path("evaluation_results.json")
+RESULTS_PATH = Path("data/evaluation_results.json")
 
 
 # Fixed test cases used to evaluate the recommender
