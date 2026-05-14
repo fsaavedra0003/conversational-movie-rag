@@ -273,6 +273,38 @@ evaluation_results.json
 
 ---
 
+
+# Performance Considerations
+
+The system uses:
+- async FastAPI endpoints
+- StreamingResponse for lower perceived latency
+- precomputed embeddings
+- lightweight ChromaDB retrieval
+- non-blocking external API calls
+
+These choices improve scalability and conversational responsiveness.
+
+---
+
+# Architectural Decisions
+
+- RAG was chosen to ground recommendations and reduce hallucinations.
+- The agent workflow enables tool usage and metadata enrichment.
+- ChromaDB was selected for lightweight local semantic retrieval and easy reproducibility.
+
+---
+
+# Current Limitations
+
+- Recommendation quality depends on retrieval quality.
+- No reranking model is implemented yet.
+- Evaluation is deterministic and not human-rated.
+- External metadata depends on third-party APIs.
+
+
+---
+
 # API Endpoint
 
 ## Streaming Recommendation Endpoint
