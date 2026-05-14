@@ -9,9 +9,11 @@ from app.services.llm import get_llm
 from app.services.rag import retrieve_rag_context, rag_answer
 
 
+# File where evaluation results will be saved
 RESULTS_PATH = Path("evaluation_results.json")
 
 
+# Fixed test cases used to evaluate the recommender
 TEST_CASES = [
     {
         "name": "general_sci_fi",
@@ -78,10 +80,12 @@ TEST_CASES = [
 
 
 def normalize_text(text: str) -> str:
+    # Lowercase text and remove extra whitespace
     return re.sub(r"\s+", " ", text.lower()).strip()
 
 
 async def extract_recommended_movie(answer: str) -> str:
+    # Uses the LLM to extract the main movie title from an answer
     prompt = f"""
 Extract the main movie title recommended or discussed in this answer.
 
@@ -107,6 +111,7 @@ Answer:
 
 
 def movie_appears_in_context(movie_title: str, context: str) -> bool:
+    # Checks whether the extracted movie title appears in retrieved RAG context
     if movie_title == "UNKNOWN":
         return False
 
@@ -114,6 +119,7 @@ def movie_appears_in_context(movie_title: str, context: str) -> bool:
 
 
 def extract_disliked_movies(context: str) -> set[str]:
+    # Extracts disliked movies from retrieved context
     disliked = set()
 
     for line in context.splitlines():
@@ -131,6 +137,7 @@ def extract_disliked_movies(context: str) -> set[str]:
 
 
 def extract_liked_movies(context: str) -> set[str]:
+    # Extracts liked movies from retrieved context
     liked = set()
 
     for line in context.splitlines():
@@ -148,6 +155,7 @@ def extract_liked_movies(context: str) -> set[str]:
 
 
 def extract_recommended_movies_from_context(context: str) -> set[str]:
+    # Extracts previously recommended movies from retrieved context
     recommended = set()
 
     for line in context.splitlines():
@@ -165,6 +173,7 @@ def extract_recommended_movies_from_context(context: str) -> set[str]:
 
 
 def contains_streaming_claim(answer: str) -> bool:
+    # Detects unsupported streaming availability claims
     text = normalize_text(answer)
 
     risky_phrases = [
@@ -182,6 +191,7 @@ def contains_streaming_claim(answer: str) -> bool:
 
 
 def has_agent_metadata(answer: str) -> bool:
+    # Checks whether agent response includes expected metadata fields
     text = normalize_text(answer)
 
     return (
@@ -198,17 +208,20 @@ def check_output(
     mode: str,
     expected_title: str | None = None,
 ) -> dict:
+    # Runs automatic checks against the generated answer
     disliked_movies = extract_disliked_movies(context)
     liked_movies = extract_liked_movies(context)
     context_recommended_movies = extract_recommended_movies_from_context(context)
 
     normalized_movie = normalize_text(movie_title)
 
+    # Check if system recommended something the user disliked
     recommended_disliked_movie = any(
         normalize_text(movie) == normalized_movie
         for movie in disliked_movies
     )
 
+    # Check if system repeated something already liked or seen
     recommended_seen_or_liked_movie = any(
         normalize_text(movie) == normalized_movie
         for movie in liked_movies
@@ -216,6 +229,7 @@ def check_output(
 
     expected_title_match = True
 
+    # For explicit movie questions, verify expected title appears
     if expected_title:
         expected_title_match = (
             normalize_text(expected_title) in normalize_text(answer)
@@ -229,6 +243,7 @@ def check_output(
         for movie in context_recommended_movies
     )
 
+    # Boolean evaluation checks
     checks = {
         "non_empty": bool(answer.strip()),
         "movie_extracted": movie_title != "UNKNOWN",
@@ -243,6 +258,7 @@ def check_output(
         "expected_title_match": expected_title_match,
     }
 
+    # Convert passed checks into a score
     score = sum(checks.values())
     max_score = len(checks)
 
@@ -259,6 +275,7 @@ def check_output(
 
 
 async def run_agent_case(question: str, user_id: str | None) -> str:
+    # Runs one test case using the agent pipeline
     chunks = []
 
     async for token in agent_recommend(
@@ -272,6 +289,7 @@ async def run_agent_case(question: str, user_id: str | None) -> str:
 
 
 async def run_rag_case(question: str, user_id: str | None) -> str:
+    # Runs one test case using the RAG pipeline
     return await rag_answer(
         question=question,
         history="",
@@ -280,23 +298,28 @@ async def run_rag_case(question: str, user_id: str | None) -> str:
 
 
 async def run_case(case: dict) -> dict:
+    # Runs one full evaluation case
     question = case["question"]
     user_id = case["user_id"]
     mode = case["mode"]
 
+    # Retrieve context used by the recommender
     context = retrieve_rag_context(
         question=question,
         history="",
         user_id=user_id,
     )
 
+    # Generate answer using selected mode
     if mode == "agent":
         answer = await run_agent_case(question, user_id)
     else:
         answer = await run_rag_case(question, user_id)
 
+    # Extract recommended movie title
     movie_title = await extract_recommended_movie(answer)
 
+    # Evaluate generated answer
     evaluation = check_output(
         answer=answer,
         context=context,
@@ -305,6 +328,7 @@ async def run_case(case: dict) -> dict:
         expected_title=case.get("expected_title"),
     )
 
+    # Passing threshold
     passed = evaluation["score_percent"] >= 75
 
     return {
@@ -320,6 +344,7 @@ async def run_case(case: dict) -> dict:
 
 
 async def run_eval() -> None:
+    # Runs all evaluation cases and saves a report
     results = []
 
     for case in TEST_CASES:
@@ -329,6 +354,7 @@ async def run_eval() -> None:
         result = await run_case(case)
         results.append(result)
 
+        # Print case summary
         print(f"Mode: {result['mode']}")
         print(f"Movie extracted: {result['movie_title']}")
         print(f"Score: {result['score']}/{result['max_score']}")
@@ -343,6 +369,7 @@ async def run_eval() -> None:
             status = "PASS" if passed else "FAIL"
             print(f"- {check_name}: {status}")
 
+    # Aggregate evaluation results
     total = len(results)
     passed_count = sum(1 for result in results if result["passed"])
     average_score = sum(result["score_percent"] for result in results) / total
@@ -356,9 +383,11 @@ async def run_eval() -> None:
         "results": results,
     }
 
+    # Save JSON report
     with open(RESULTS_PATH, "w", encoding="utf-8") as file:
         json.dump(report, file, indent=2, ensure_ascii=False)
 
+    # Print final summary
     print("\n" + "=" * 80)
     print("SUMMARY")
     print(f"Passed: {passed_count}/{total}")
@@ -367,5 +396,6 @@ async def run_eval() -> None:
     print(f"Saved report to: {RESULTS_PATH}")
 
 
+# Script entry point
 if __name__ == "__main__":
     asyncio.run(run_eval())
