@@ -271,7 +271,7 @@ The script saves a full JSON report to:
 evaluation_results.json
 ```
 
-# Performance Considerations
+## Performance Considerations
 
 The system uses:
 - async FastAPI endpoints
@@ -284,7 +284,7 @@ These choices improve scalability and conversational responsiveness.
 
 
 
-# Architectural Decisions
+## Architectural Decisions
 
 - RAG was chosen to ground recommendations and reduce hallucinations.
 - The agent workflow enables tool usage and metadata enrichment.
@@ -292,7 +292,7 @@ These choices improve scalability and conversational responsiveness.
 
 
 
-# Current Limitations
+## Current Limitations
 
 - Recommendation quality depends on retrieval quality.
 - No reranking model is implemented yet.
