@@ -1,11 +1,22 @@
 from collections.abc import AsyncGenerator
 
+# Intent classifier used to detect what the user wants
 from app.services.intent import classify_intent
+
+# LLM helpers:
+# - get_llm() creates the model instance
+# - stream_llm_response() streams tokens back to the UI
 from app.services.llm import get_llm, stream_llm_response
+
+# External movie metadata provider (IMDbOT)
 from app.services.movie_api import get_movie_info
+
+# RAG-based recommendation pipeline
 from app.services.rag import rag_answer
 
 
+# Intents that may require extra movie metadata
+# such as actors, year, IMDb link, or poster
 METADATA_INTENTS = {
     "recommend_with_metadata",
     "recommend_with_availability",
@@ -14,6 +25,12 @@ METADATA_INTENTS = {
 
 
 async def extract_movie_title(text: str) -> str:
+    """
+    Uses the LLM to extract the main movie title
+    from the generated RAG response.
+    """
+
+    # Prompt asking the LLM to only return the movie title
     prompt = f"""
 Extract the main recommended or discussed movie title from this answer.
 
@@ -27,11 +44,16 @@ Answer:
 {text}
 """
 
+    # Create a non-streaming LLM instance
     llm = get_llm(streaming=False)
+
+    # Invoke the LLM asynchronously
     response = await llm.ainvoke(prompt)
 
+    # Clean whitespace from the response
     title = response.content.strip()
 
+    # Fallback if extraction failed
     if not title or title.upper() == "UNKNOWN":
         return "Unknown"
 
@@ -39,6 +61,11 @@ Answer:
 
 
 def has_valid_movie_info(movie_info: dict) -> bool:
+    """
+    Validates whether the metadata response
+    contains useful movie information.
+    """
+
     return any(
         movie_info.get(field)
         and "not found" not in str(movie_info.get(field)).lower()
@@ -47,8 +74,15 @@ def has_valid_movie_info(movie_info: dict) -> bool:
 
 
 def should_call_metadata_tool(intent: str, question: str) -> bool:
+    """
+    Decides whether the system should call
+    the external movie metadata tool.
+    """
+
+    # Convert question to lowercase for keyword matching
     text = question.lower()
 
+    # Keywords indicating the user wants movie details
     metadata_keywords = [
         "details",
         "metadata",
@@ -63,6 +97,9 @@ def should_call_metadata_tool(intent: str, question: str) -> bool:
         "explain",
     ]
 
+    # Return True if:
+    # - the detected intent requires metadata
+    # - OR the user explicitly asks for details
     return intent in METADATA_INTENTS or any(
         keyword in text for keyword in metadata_keywords
     )
@@ -76,8 +113,15 @@ def build_agent_final_prompt(
     movie_info: dict | None = None,
     metadata_found: bool = False,
 ) -> str:
+    """
+    Builds the final agent prompt used
+    to generate the conversational answer.
+    """
+
     metadata_section = ""
 
+    # If valid metadata exists,
+    # include it inside the final prompt
     if movie_info and metadata_found:
         metadata_section = f"""
 IMDbOT metadata:
@@ -88,12 +132,14 @@ IMDb URL: {movie_info["imdb_url"]}
 Poster URL: {movie_info["poster"]}
 """
     else:
+        # Prevent hallucinated metadata
         metadata_section = """
 IMDbOT metadata:
 External metadata was not available or incomplete.
 Use only the RAG recommendation and do not invent missing metadata.
 """
 
+    # Final system prompt for the LLM
     return f"""
 You are a simple agentic conversational movie recommender.
 
@@ -132,6 +178,10 @@ Assistant:
 
 
 async def stream_text(text: str) -> AsyncGenerator[str, None]:
+    """
+    Simple async generator used to stream plain text.
+    """
+
     yield text
 
 
@@ -140,26 +190,47 @@ async def agent_recommend(
     history: str,
     user_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
+    """
+    Main agent workflow.
+
+    Flow:
+    1. Detect intent
+    2. Generate RAG recommendation
+    3. Decide if metadata is needed
+    4. Optionally retrieve external movie metadata
+    5. Generate final conversational answer
+    """
+
+    # Step 1: classify user intent
     intent = classify_intent(question)
 
+    # Step 2: generate recommendation using RAG
     rag_response = await rag_answer(
         question=question,
         history=history,
         user_id=user_id,
     )
 
+    # Step 3: determine whether metadata lookup is needed
     needs_metadata = should_call_metadata_tool(intent, question)
 
+    # If metadata is not needed,
+    # stream the raw RAG response directly
     if not needs_metadata:
         async for token in stream_text(rag_response):
             yield token
         return
 
+    # Step 4: extract movie title from the RAG response
     movie_title = await extract_movie_title(rag_response)
 
+    # Fetch external metadata for the extracted movie
     movie_info = await get_movie_info(movie_title)
+
+    # Validate metadata quality
     metadata_found = has_valid_movie_info(movie_info)
 
+    # Step 5: build the final agent prompt
     prompt = build_agent_final_prompt(
         question=question,
         history=history,
@@ -169,5 +240,6 @@ async def agent_recommend(
         metadata_found=metadata_found,
     )
 
+    # Stream final LLM-generated response token by token
     async for token in stream_llm_response(prompt):
         yield token
