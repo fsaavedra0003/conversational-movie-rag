@@ -1,6 +1,6 @@
 # Conversational Movie Recommender System (CRS)
 
-LLM-based Conversational Recommender System built for the Seez Generative AI Engineering technical assessment.
+LLM-based Conversational Recommender System.
 
 The project implements multiple LLM-based conversational recommendation approaches on top of the LLM-REDIAL dataset and exposes the system through a FastAPI streaming API with a Streamlit interface.
 
