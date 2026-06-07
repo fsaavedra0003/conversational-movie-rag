@@ -14,7 +14,7 @@ The implementation focuses on:
 
 ---
 
-# Assignment Coverage
+# Coverage
 
 | Requirement | Implementation |
 |---|---|
